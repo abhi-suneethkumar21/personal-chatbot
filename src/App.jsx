@@ -42,7 +42,13 @@ function App() {
       ...(images.length > 0 && { images })
     };
 
-    const apiMessages = [...messages, newUserMsg].map(msg => ({
+    // Define your personal system prompt here!
+    const systemMessage = {
+      role: 'system',
+      content: "You are my elite personal AI assistant. Your purpose is to help me with work, coding, and personal tasks. IMPORTANT: Never hallucinate or invent fake schedules, emails, or personal data. Wait for me to provide the context or ask a specific question. Be highly analytical, direct, and conversational. Do not use generic filler words."
+    };
+
+    const apiMessages = [systemMessage, ...messages, newUserMsg].map(msg => ({
       role: msg.role,
       content: msg.content,
       ...(msg.images && { images: msg.images })
