@@ -183,10 +183,11 @@ function EmptyState() {
 }
 
 export default function ChatWindow({ messages, generating, sidebarOpen, onToggleSidebar, title, model }) {
-  const bottomRef = useRef(null);
+  const scrollContainerRef = useRef(null);
 
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+    const el = scrollContainerRef.current;
+    if (el) el.scrollTop = el.scrollHeight;
   }, [messages, generating]);
 
   const showTyping = generating
@@ -246,7 +247,7 @@ export default function ChatWindow({ messages, generating, sidebarOpen, onToggle
       {isEmpty ? (
         <EmptyState />
       ) : (
-        <div className="scroll-touch" style={{ flex: 1, overflowY: 'auto', padding: '1.5rem 1rem 0.5rem' }}>
+        <div ref={scrollContainerRef} className="scroll-touch" style={{ flex: 1, overflowY: 'auto', padding: '1.5rem 1rem 0.5rem' }}>
           <div style={{ maxWidth: 760, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 28 }}>
             <AnimatePresence initial={false}>
               {messages.map((msg, i) => {
@@ -275,7 +276,7 @@ export default function ChatWindow({ messages, generating, sidebarOpen, onToggle
               </motion.div>
             )}
 
-            <div ref={bottomRef} style={{ height: 4 }} />
+            <div style={{ height: 4 }} />
           </div>
         </div>
       )}

@@ -5,7 +5,6 @@ import ChatInput from './components/ChatInput';
 
 const OLLAMA_BASE = 'https://b818-2405-201-d01c-1085-8c73-7ef-c133-f30d.ngrok-free.app';
 const STORAGE_KEY = 'ab_v1';
-const ACTIVE_KEY = 'ab_active';
 const SYSTEM_PROMPT =
   'You are an elite personal AI assistant. Help with work, coding, and personal tasks. ' +
   'Be highly analytical, direct, and conversational. Never hallucinate data. Avoid filler phrases.';
@@ -26,18 +25,27 @@ function persist(sessions) {
   try { localStorage.setItem(STORAGE_KEY, JSON.stringify(sessions)); } catch (e) { console.warn('persist failed', e); }
 }
 
-export default function App() {
-  const [sessions, setSessions] = useState(() => {
-    const s = hydrate();
-    return s.length ? s : [newSession()];
-  });
+// Computed once per page load — always start with an empty/fresh session active
+const getInitialState = (() => {
+  let cache = null;
+  return () => {
+    if (!cache) {
+      const s = hydrate();
+      const empty = s.find(sess => sess.messages.length === 0);
+      if (empty) {
+        cache = { sessions: s, activeId: empty.id };
+      } else {
+        const fresh = newSession();
+        cache = { sessions: s.length ? [fresh, ...s] : [fresh], activeId: fresh.id };
+      }
+    }
+    return cache;
+  };
+})();
 
-  const [activeId, setActiveId] = useState(() => {
-    const s = hydrate();
-    if (!s.length) return null;
-    const saved = localStorage.getItem(ACTIVE_KEY);
-    return s.find(x => x.id === saved) ? saved : [...s].sort((a, b) => b.updatedAt - a.updatedAt)[0].id;
-  });
+export default function App() {
+  const [sessions, setSessions] = useState(() => getInitialState().sessions);
+  const [activeId, setActiveId] = useState(() => getInitialState().activeId);
 
   const [sidebarOpen, setSidebarOpen] = useState(() => window.innerWidth >= 768);
   const [generating, setGenerating] = useState(false);
@@ -45,7 +53,6 @@ export default function App() {
   const abortRef = useRef(null);
 
   useEffect(() => { persist(sessions); }, [sessions]);
-  useEffect(() => { if (activeId) localStorage.setItem(ACTIVE_KEY, activeId); }, [activeId]);
 
   useEffect(() => {
     document.documentElement.dataset.theme = theme;
