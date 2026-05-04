@@ -1,34 +1,339 @@
 @import "tailwindcss";
 
+/* ──────────────────────────────────────────────
+   DARK THEME (default)
+────────────────────────────────────────────── */
 :root {
   color-scheme: dark;
+
+  --bg:        #0d0e14;
+  --sidebar:   #090910;
+  --surface:   #13131f;
+  --elevated:  #1c1c2e;
+  --divider:   rgba(255,255,255,0.06);
+  --divider-strong: rgba(255,255,255,0.1);
+
+  --accent:    #5d7ff7;
+  --accent2:   #9d7ff7;
+  --accent-fade:  rgba(93,127,247,0.1);
+  --accent-ring:  rgba(93,127,247,0.22);
+  --accent-glow:  rgba(93,127,247,0.3);
+  --accent-focus: rgba(93,127,247,0.08);
+  --accent-text:  #8aabff;
+  --accent-text2: #b0c8ff;
+
+  --t1: #eeeef5;
+  --t2: #6868a0;
+  --t3: #38385a;
+
+  --user-bg:   rgba(26,28,48,0.96);
+  --user-ring: rgba(93,127,247,0.14);
+  --user-text: #d0d0e8;
+
+  --asst-name:  #5d7ff7;
+  --prose-text: #cccce0;
+
+  --code-bg:          #09090f;
+  --code-head:        #111118;
+  --code-dim:         #50508a;
+  --code-inline-bg:   rgba(93,127,247,0.12);
+  --code-inline-text: #a78bfa;
+
+  --input-bg:    #13131f;
+  --input-ring:  rgba(255,255,255,0.08);
+  --input-text:  #d0d0e8;
+
+  --online:      #34d399;
+  --online-glow: rgba(52,211,153,0.6);
+  --dot:         #3a3a70;
+  --backdrop:    rgba(0,0,0,0.55);
+
+  --session-active:      rgba(255,255,255,0.06);
+  --session-hover:       rgba(255,255,255,0.03);
+  --session-text-active: #eeeef5;
+  --session-text:        #6868a0;
+  --session-icon-active: #5d7ff7;
+  --session-icon:        #38385a;
+
+  --del-hover-bg:   rgba(255,80,80,0.1);
+  --del-hover-text: #ff7070;
+
+  --new-chat-bg:       rgba(93,127,247,0.1);
+  --new-chat-border:   rgba(93,127,247,0.22);
+  --new-chat-text:     #8aabff;
+  --new-chat-hover:    rgba(93,127,247,0.18);
+  --new-chat-htext:    #b0c8ff;
+
+  --model-sel-bg:     rgba(255,255,255,0.03);
+  --model-sel-border: rgba(255,255,255,0.06);
+  --model-sel-text:   #6868a0;
+  --model-dd-bg:      #111118;
+  --model-dd-border:  rgba(255,255,255,0.09);
+  --model-dd-shadow:  0 8px 28px rgba(0,0,0,0.6);
+  --model-opt-hover:  rgba(255,255,255,0.05);
+  --model-opt-text:   #6868a0;
+  --model-opt-active: #eeeef5;
+  --model-dot-on:     #5d7ff7;
+  --model-dot-off:    #38385a;
+
+  --pill-bg:     rgba(93,127,247,0.1);
+  --pill-border: rgba(93,127,247,0.2);
+  --pill-text:   #5d7ff7;
+
+  --header-bg:    rgba(13,14,20,0.88);
+  --header-title: #b8b8d0;
+  --toggle-color: rgba(255,255,255,0.28);
+  --toggle-hover: rgba(255,255,255,0.06);
+  --toggle-hover-c: rgba(255,255,255,0.75);
+
+  --suggest-text:     #c0c0d8;
+  --suggest-hint:     #44446a;
+  --suggest-bg:       rgba(255,255,255,0.02);
+  --suggest-border:   rgba(255,255,255,0.06);
+  --suggest-hbg:      rgba(255,255,255,0.04);
+  --empty-title:      #eeeef5;
+  --empty-sub:        #44446a;
+
+  --att-bg:     #13131f;
+  --att-border: rgba(255,255,255,0.08);
+  --att-text:   #8888aa;
+  --att-rm-bg:  #252535;
+
+  --footer-note: #282840;
+
+  --theme-btn:       #38385a;
+  --theme-btn-hover: rgba(255,255,255,0.06);
+  --theme-btn-hc:    #6868a0;
 }
 
+/* ──────────────────────────────────────────────
+   LIGHT THEME — warm Claude-like
+────────────────────────────────────────────── */
+[data-theme="light"] {
+  color-scheme: light;
+
+  --bg:        #faf8f5;
+  --sidebar:   #f0ebe3;
+  --surface:   #ece6dc;
+  --elevated:  #e4ddd2;
+  --divider:   rgba(0,0,0,0.07);
+  --divider-strong: rgba(0,0,0,0.13);
+
+  --accent:    #c96442;
+  --accent2:   #a85030;
+  --accent-fade:  rgba(201,100,66,0.08);
+  --accent-ring:  rgba(201,100,66,0.22);
+  --accent-glow:  rgba(201,100,66,0.22);
+  --accent-focus: rgba(201,100,66,0.08);
+  --accent-text:  #c96442;
+  --accent-text2: #a85030;
+
+  --t1: #1a1816;
+  --t2: #5a5048;
+  --t3: #a09080;
+
+  --user-bg:   #e8e2d8;
+  --user-ring: rgba(201,100,66,0.18);
+  --user-text: #2a2420;
+
+  --asst-name:  #c96442;
+  --prose-text: #2d2a26;
+
+  --code-bg:          #e8e2d8;
+  --code-head:        #dfd9cf;
+  --code-dim:         #8a7060;
+  --code-inline-bg:   rgba(201,100,66,0.1);
+  --code-inline-text: #b85030;
+
+  --input-bg:    #ece6dc;
+  --input-ring:  rgba(0,0,0,0.1);
+  --input-text:  #1a1816;
+
+  --online:      #16a34a;
+  --online-glow: rgba(22,163,74,0.4);
+  --dot:         #c0a898;
+  --backdrop:    rgba(0,0,0,0.35);
+
+  --session-active:      rgba(0,0,0,0.07);
+  --session-hover:       rgba(0,0,0,0.035);
+  --session-text-active: #1a1816;
+  --session-text:        #6a5a50;
+  --session-icon-active: #c96442;
+  --session-icon:        #b0a090;
+
+  --del-hover-bg:   rgba(200,60,60,0.09);
+  --del-hover-text: #c04040;
+
+  --new-chat-bg:     rgba(201,100,66,0.08);
+  --new-chat-border: rgba(201,100,66,0.22);
+  --new-chat-text:   #c96442;
+  --new-chat-hover:  rgba(201,100,66,0.15);
+  --new-chat-htext:  #a85030;
+
+  --model-sel-bg:     rgba(0,0,0,0.04);
+  --model-sel-border: rgba(0,0,0,0.09);
+  --model-sel-text:   #6a5a50;
+  --model-dd-bg:      #f0ebe3;
+  --model-dd-border:  rgba(0,0,0,0.1);
+  --model-dd-shadow:  0 8px 28px rgba(0,0,0,0.14);
+  --model-opt-hover:  rgba(0,0,0,0.05);
+  --model-opt-text:   #6a5a50;
+  --model-opt-active: #1a1816;
+  --model-dot-on:     #c96442;
+  --model-dot-off:    #b0a090;
+
+  --pill-bg:     rgba(201,100,66,0.08);
+  --pill-border: rgba(201,100,66,0.2);
+  --pill-text:   #c96442;
+
+  --header-bg:    rgba(250,248,245,0.9);
+  --header-title: #6a5a50;
+  --toggle-color: rgba(0,0,0,0.3);
+  --toggle-hover: rgba(0,0,0,0.06);
+  --toggle-hover-c: rgba(0,0,0,0.7);
+
+  --suggest-text:   #3a3028;
+  --suggest-hint:   #8a7868;
+  --suggest-bg:     rgba(0,0,0,0.02);
+  --suggest-border: rgba(0,0,0,0.07);
+  --suggest-hbg:    rgba(0,0,0,0.04);
+  --empty-title:    #1a1816;
+  --empty-sub:      #8a7868;
+
+  --att-bg:     #e8e2d8;
+  --att-border: rgba(0,0,0,0.08);
+  --att-text:   #6a5a50;
+  --att-rm-bg:  #d8d2c8;
+
+  --footer-note: #c0b0a0;
+
+  --theme-btn:       #b0a090;
+  --theme-btn-hover: rgba(0,0,0,0.06);
+  --theme-btn-hc:    #6a5a50;
+}
+
+/* ──────────────────────────────────────────────
+   BASE
+────────────────────────────────────────────── */
 body {
   margin: 0;
-  min-width: 320px;
   min-height: 100vh;
-  background-color: #0f1115; /* Sleek dark mode background */
-  color: #e2e8f0; /* Soft text color */
+  background: var(--bg);
+  color: var(--t1);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Inter', system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  transition: background 0.25s ease, color 0.2s ease;
 }
 
 #root {
   width: 100%;
-  height: 100%;
+  height: 100vh;
+  height: 100dvh; /* shrinks when soft keyboard opens on iOS/Android */
 }
 
-/* Custom Scrollbar for a premium look */
-::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
+::-webkit-scrollbar { width: 4px; height: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--divider-strong); border-radius: 99px; }
+::-webkit-scrollbar-thumb:hover { background: var(--t3); }
+
+/* ──────────────────────────────────────────────
+   MARKDOWN PROSE
+────────────────────────────────────────────── */
+.chat-prose { line-height: 1.75; color: var(--prose-text); font-size: 14px; }
+.chat-prose > *:first-child { margin-top: 0 !important; }
+.chat-prose > *:last-child { margin-bottom: 0 !important; }
+.chat-prose h1,.chat-prose h2,.chat-prose h3,.chat-prose h4 { color: var(--t1); font-weight: 600; margin: 1.3em 0 0.5em; line-height: 1.3; }
+.chat-prose h1 { font-size: 1.25em; }
+.chat-prose h2 { font-size: 1.1em; }
+.chat-prose h3 { font-size: 1em; }
+.chat-prose p { margin: 0.65em 0; }
+.chat-prose ul,.chat-prose ol { padding-left: 1.5em; margin: 0.6em 0; }
+.chat-prose li { margin: 0.3em 0; }
+.chat-prose strong { color: var(--t1); font-weight: 600; }
+.chat-prose em { color: var(--t2); }
+.chat-prose blockquote { border-left: 2px solid var(--accent-ring); padding: 0.4em 1em; margin: 1em 0; color: var(--t2); background: var(--accent-fade); border-radius: 0 8px 8px 0; }
+.chat-prose a { color: var(--accent-text); text-decoration: none; }
+.chat-prose a:hover { text-decoration: underline; }
+.chat-prose hr { border: none; border-top: 1px solid var(--divider); margin: 1.5em 0; }
+.chat-prose table { width: 100%; border-collapse: collapse; margin: 1em 0; font-size: 0.9em; }
+.chat-prose th { background: var(--accent-fade); border: 1px solid var(--divider-strong); padding: 8px 14px; text-align: left; font-weight: 600; color: var(--t1); }
+.chat-prose td { border: 1px solid var(--divider); padding: 8px 14px; color: var(--t2); }
+.chat-prose code { background: var(--code-inline-bg); color: var(--code-inline-text); padding: 2px 6px; border-radius: 5px; font-size: 0.85em; font-family: 'SF Mono','Fira Code',Consolas,monospace; }
+.chat-prose pre code { background: none; color: inherit; padding: 0; font-size: 1em; }
+
+/* ──────────────────────────────────────────────
+   CODE BLOCKS
+────────────────────────────────────────────── */
+.code-block { border-radius: 12px; overflow: hidden; margin: 1em 0; border: 1px solid var(--divider); background: var(--code-bg); }
+/* allow horizontal scrolling of code on narrow screens */
+.code-block .syntax-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+.code-header { display: flex; align-items: center; justify-content: space-between; padding: 8px 14px; background: var(--code-head); border-bottom: 1px solid var(--divider); }
+.code-lang { font-size: 10px; text-transform: uppercase; letter-spacing: 0.1em; color: var(--code-dim); font-weight: 700; font-family: 'SF Mono',monospace; }
+.copy-btn { display: flex; align-items: center; gap: 4px; font-size: 11px; color: var(--code-dim); background: none; border: none; cursor: pointer; padding: 3px 8px; border-radius: 5px; transition: color 0.15s, background 0.15s; }
+.copy-btn:hover { color: var(--t1); background: var(--divider-strong); }
+.copy-btn.copied { color: var(--online); }
+
+/* ──────────────────────────────────────────────
+   ANIMATIONS
+────────────────────────────────────────────── */
+@keyframes blink { 0%,100% { opacity:1; } 50% { opacity:0; } }
+.typing-cursor::after { content:'▋'; animation: blink 0.85s step-end infinite; color: var(--accent); margin-left: 2px; font-size: 0.8em; }
+
+@keyframes dot-pulse {
+  0%,60%,100% { transform: scale(0.55); opacity: 0.35; }
+  30%          { transform: scale(1);    opacity: 1;    }
 }
-::-webkit-scrollbar-track {
-  background: transparent;
+.dot-pulse { animation: dot-pulse 1.4s ease-in-out infinite; display: inline-block; }
+.dot-pulse:nth-child(2) { animation-delay: 0.18s; }
+.dot-pulse:nth-child(3) { animation-delay: 0.36s; }
+
+/* ──────────────────────────────────────────────
+   RESPONSIVE
+────────────────────────────────────────────── */
+
+/* iOS safe-area bottom (home indicator / notch) */
+.safe-bottom {
+  padding-bottom: max(20px, env(safe-area-inset-bottom));
 }
-::-webkit-scrollbar-thumb {
-  background: #334155;
-  border-radius: 4px;
+
+/* Suggestion grid: 2-col on wider screens, 1-col on narrow phones */
+.suggest-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 200px), 1fr));
+  gap: 10px;
 }
-::-webkit-scrollbar-thumb:hover {
-  background: #475569;
+
+/* Minimum tap target for icon buttons */
+.tap-target {
+  min-width: 36px;
+  min-height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
 }
+
+/* Prevent iOS text-size adjust */
+html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
+
+/* Smooth momentum scrolling on iOS */
+.scroll-touch { -webkit-overflow-scrolling: touch; }
+
+/* On very small screens, hide model pill in header to save space */
+@media (max-width: 360px) {
+  .model-pill-header { display: none !important; }
+}
+
+/* Tighten message area padding on mobile */
+@media (max-width: 640px) {
+  .msg-area { padding: 1rem 0.75rem 0.5rem !important; }
+  .msg-gap { gap: 20px !important; }
+}
+
+/* Ensure tables scroll on mobile instead of overflowing */
+.chat-prose table { display: block; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+
+/* Prevent horizontal overflow from long unbroken strings */
+.chat-prose { overflow-wrap: break-word; word-break: break-word; }

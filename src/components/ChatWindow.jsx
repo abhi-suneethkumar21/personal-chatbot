@@ -1,135 +1,284 @@
-import React, { useRef, useEffect } from 'react';
+import { useRef, useEffect, useState } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism';
-import { Bot, User as UserIcon, Sparkles } from 'lucide-react';
-import { motion } from 'framer-motion';
+import { Menu, PanelLeftClose, Copy, Check, Zap, Code2, FileText, Lightbulb, BarChart2 } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
 
-const ChatWindow = ({ messages, isGenerating }) => {
+const SUGGESTIONS = [
+  { icon: Code2,      label: 'Write code',  hint: 'Build a component, script, or query',       color: 'var(--accent)'  },
+  { icon: FileText,   label: 'Summarize',   hint: 'Paste text or upload a file to digest',      color: 'var(--accent2)' },
+  { icon: Lightbulb,  label: 'Brainstorm',  hint: 'Generate ideas for projects or problems',   color: '#f7b55d'         },
+  { icon: BarChart2,  label: 'Analyze',     hint: 'Interpret data, results, or patterns',       color: '#5df7b5'         },
+];
+
+function CodeBlock({ language, code }) {
+  const [copied, setCopied] = useState(false);
+  const copy = () => {
+    navigator.clipboard.writeText(code).catch(() => {});
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+  return (
+    <div className="code-block">
+      <div className="code-header">
+        <span className="code-lang">{language}</span>
+        <button className={`copy-btn${copied ? ' copied' : ''}`} onClick={copy}>
+          {copied ? <Check size={11} /> : <Copy size={11} />}
+          {copied ? 'Copied!' : 'Copy'}
+        </button>
+      </div>
+      <div className="syntax-scroll">
+        <SyntaxHighlighter
+          language={language}
+          style={vscDarkPlus}
+          PreTag="div"
+          customStyle={{ margin: 0, background: 'transparent', padding: '1rem 1.2rem', fontSize: '0.84em', lineHeight: 1.65 }}
+        >
+          {code}
+        </SyntaxHighlighter>
+      </div>
+    </div>
+  );
+}
+
+const mdComponents = {
+  code({ node, inline, className, children, ...props }) {
+    const match = /language-(\w+)/.exec(className || '');
+    if (!inline && match) {
+      return <CodeBlock language={match[1]} code={String(children).replace(/\n$/, '')} />;
+    }
+    return <code className={className} {...props}>{children}</code>;
+  },
+};
+
+function UserMessage({ msg }) {
+  return (
+    <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+      <div style={{
+        maxWidth: '72%',
+        background: 'var(--user-bg)',
+        border: '1px solid var(--user-ring)',
+        borderRadius: '18px 18px 5px 18px',
+        padding: '11px 16px',
+        fontSize: 14, lineHeight: 1.7,
+        color: 'var(--user-text)',
+        wordBreak: 'break-word', whiteSpace: 'pre-wrap',
+        transition: 'background 0.25s, border-color 0.25s, color 0.25s',
+      }}>
+        {msg.displayContent ?? msg.content}
+        {msg.images?.length > 0 && (
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 10 }}>
+            {msg.images.map((img, i) => (
+              <img key={i} src={`data:image/png;base64,${img}`} alt=""
+                style={{ maxWidth: 200, maxHeight: 200, borderRadius: 8, objectFit: 'cover' }} />
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function AssistantMessage({ msg, streaming }) {
+  return (
+    <div style={{ display: 'flex', gap: 12 }}>
+      <div style={{
+        width: 26, height: 26, borderRadius: '50%', flexShrink: 0, marginTop: 2,
+        background: 'linear-gradient(135deg, var(--accent) 0%, var(--accent2) 100%)',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        boxShadow: '0 0 10px var(--accent-glow)',
+      }}>
+        <Zap size={12} style={{ color: 'white' }} />
+      </div>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--asst-name)', marginBottom: 8, letterSpacing: '0.02em' }}>
+          Assistant
+        </div>
+        <div className="chat-prose">
+          <ReactMarkdown remarkPlugins={[remarkGfm]} components={mdComponents}>
+            {msg.content}
+          </ReactMarkdown>
+          {streaming && msg.content && <span className="typing-cursor" />}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function TypingIndicator() {
+  return (
+    <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+      <div style={{
+        width: 26, height: 26, borderRadius: '50%', flexShrink: 0,
+        background: 'linear-gradient(135deg, var(--accent) 0%, var(--accent2) 100%)',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        boxShadow: '0 0 10px var(--accent-glow)',
+      }}>
+        <Zap size={12} style={{ color: 'white' }} />
+      </div>
+      <div style={{ display: 'flex', gap: 5, alignItems: 'center', paddingTop: 2 }}>
+        {[0, 1, 2].map(i => (
+          <div key={i} className="dot-pulse"
+            style={{ width: 7, height: 7, borderRadius: '50%', background: 'var(--dot)' }} />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function SuggestionCard({ icon: Icon, label, hint, color }) {
+  const [hovered, setHovered] = useState(false);
+  return (
+    <div
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+      style={{
+        background: hovered ? 'var(--suggest-hbg)' : 'var(--suggest-bg)',
+        border: `1px solid ${hovered ? color : 'var(--suggest-border)'}`,
+        borderRadius: 14, padding: '14px 16px', cursor: 'pointer',
+        textAlign: 'left', transition: 'all 0.18s',
+        opacity: hovered ? 1 : 0.85,
+      }}
+    >
+      <Icon size={17} style={{ color, marginBottom: 9 }} />
+      <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--suggest-text)', marginBottom: 4 }}>
+        {label}
+      </div>
+      <div style={{ fontSize: 12, color: 'var(--suggest-hint)', lineHeight: 1.45 }}>{hint}</div>
+    </div>
+  );
+}
+
+function EmptyState() {
+  return (
+    <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '2rem 1.5rem' }}>
+      <motion.div
+        initial={{ opacity: 0, y: 22 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5, ease: 'easeOut' }}
+        style={{ width: '100%', maxWidth: 580, textAlign: 'center' }}
+      >
+        <div style={{
+          width: 56, height: 56, borderRadius: 18, margin: '0 auto 1.5rem',
+          background: 'linear-gradient(135deg, var(--accent) 0%, var(--accent2) 100%)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          boxShadow: '0 0 48px var(--accent-glow)',
+        }}>
+          <Zap size={24} style={{ color: 'white' }} />
+        </div>
+        <h2 style={{ fontSize: 22, fontWeight: 700, color: 'var(--empty-title)', margin: '0 0 0.4rem', letterSpacing: '-0.03em' }}>
+          What can I help you with?
+        </h2>
+        <p style={{ fontSize: 14, color: 'var(--empty-sub)', margin: '0 0 2rem' }}>
+          Ask anything, or try one of the suggestions below
+        </p>
+        <div className="suggest-grid">
+          {SUGGESTIONS.map(s => <SuggestionCard key={s.label} {...s} />)}
+        </div>
+      </motion.div>
+    </div>
+  );
+}
+
+export default function ChatWindow({ messages, generating, sidebarOpen, onToggleSidebar, title, model }) {
   const bottomRef = useRef(null);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages, isGenerating]);
+  }, [messages, generating]);
 
-  if (messages.length === 0) {
-    return (
-      <div className="flex-1 flex flex-col items-center justify-center p-6 text-center">
-        <motion.div 
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6, ease: "easeOut" }}
-          className="max-w-md w-full"
-        >
-          <div className="w-20 h-20 bg-gradient-to-br from-indigo-500 via-purple-500 to-pink-500 rounded-3xl mx-auto mb-8 flex items-center justify-center shadow-2xl shadow-purple-500/20 relative">
-             <Sparkles className="absolute -top-2 -right-2 text-yellow-300" size={20} />
-             <Bot size={40} className="text-white" />
-          </div>
-          <h2 className="text-3xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-gray-100 to-gray-400 mb-4 tracking-tight">How can I help you today?</h2>
-          <p className="text-gray-400/80 font-medium mb-8">Ask me anything, or try one of the suggestions below.</p>
-          
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-left">
-             <button className="p-4 rounded-2xl bg-[#1e2025] hover:bg-[#2d3038] border border-[#2d3038] hover:border-indigo-500/30 transition-all duration-300 group">
-               <div className="text-sm font-semibold text-gray-200 mb-1 group-hover:text-indigo-400 transition-colors">Summarize text</div>
-               <div className="text-xs text-gray-500 line-clamp-2">Help me understand a long article or document quickly.</div>
-             </button>
-             <button className="p-4 rounded-2xl bg-[#1e2025] hover:bg-[#2d3038] border border-[#2d3038] hover:border-purple-500/30 transition-all duration-300 group">
-               <div className="text-sm font-semibold text-gray-200 mb-1 group-hover:text-purple-400 transition-colors">Write code</div>
-               <div className="text-xs text-gray-500 line-clamp-2">Create a Python script to automate my daily tasks.</div>
-             </button>
-          </div>
-        </motion.div>
-      </div>
-    );
-  }
+  const showTyping = generating
+    && messages.length > 0
+    && messages[messages.length - 1].role === 'assistant'
+    && messages[messages.length - 1].content === '';
+
+  const isEmpty = messages.length === 0 && !generating;
 
   return (
-    <div className="flex-1 overflow-y-auto px-4 py-6 scroll-smooth">
-      <div className="max-w-4xl mx-auto space-y-8">
-        {messages.map((msg, idx) => {
-          if (isGenerating && idx === messages.length - 1 && msg.role === 'assistant' && msg.content === '') {
-            return null;
-          }
-          return (
-            <motion.div 
-              key={idx}
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.3 }}
-              className={`flex gap-4 md:gap-6 ${msg.role === 'user' ? 'flex-row-reverse' : ''}`}
-            >
-              <div className={`w-8 h-8 md:w-10 md:h-10 shrink-0 rounded-full flex items-center justify-center mt-1 shadow-md ${
-                msg.role === 'user' ? 'bg-[#2d3038] text-gray-200' : 'bg-gradient-to-br from-indigo-500 to-purple-600 text-white shadow-purple-500/30'
-              }`}>
-                {msg.role === 'user' ? <UserIcon size={18} /> : <Bot size={20} />}
-              </div>
-              
-              <div className={`flex-1 overflow-hidden rounded-3xl px-5 py-4 text-[15px] leading-relaxed ${
-                msg.role === 'user' 
-                  ? 'bg-[#2d3038] text-gray-100 ml-8 md:ml-12 rounded-tr-sm' 
-                  : 'bg-transparent text-gray-200 mr-8 md:mr-12'
-              }`}>
-                {msg.role === 'user' ? (
-                  <div className="whitespace-pre-wrap">{msg.displayContent !== undefined ? msg.displayContent : msg.content}</div>
-                ) : (
-                  <div className="prose prose-invert prose-p:leading-relaxed prose-pre:bg-[#1a1b1e] prose-pre:border prose-pre:border-[#2d3038] max-w-none">
-                    <ReactMarkdown
-                      remarkPlugins={[remarkGfm]}
-                      components={{
-                        code({node, inline, className, children, ...props}) {
-                          const match = /language-(\w+)/.exec(className || '')
-                          return !inline && match ? (
-                            <div className="rounded-xl overflow-hidden my-6 border border-[#2d3038] bg-[#1a1b1e]">
-                              <div className="flex items-center justify-between px-4 py-2 bg-[#2d3038]/50 border-b border-[#2d3038] text-xs text-gray-400 uppercase tracking-wider font-semibold">
-                                {match[1]}
-                              </div>
-                              <SyntaxHighlighter
-                                {...props}
-                                children={String(children).replace(/\n$/, '')}
-                                style={vscDarkPlus}
-                                language={match[1]}
-                                PreTag="div"
-                                customStyle={{ margin: 0, background: 'transparent', padding: '1rem' }}
-                                className="text-sm"
-                              />
-                            </div>
-                          ) : (
-                            <code {...props} className="bg-[#2d3038] px-1.5 py-0.5 rounded-md text-indigo-300 font-mono text-[0.9em]">
-                              {children}
-                            </code>
-                          )
-                        }
-                      }}
-                    >
-                      {msg.content}
-                    </ReactMarkdown>
-                  </div>
-                )}
-              </div>
-            </motion.div>
-          );
-        })}
-        {isGenerating && messages.length > 0 && messages[messages.length - 1].role === 'assistant' && messages[messages.length - 1].content === '' && (
-          <motion.div 
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            className="flex gap-4 md:gap-6"
-          >
-            <div className="w-8 h-8 md:w-10 md:h-10 shrink-0 rounded-full flex items-center justify-center mt-1 bg-gradient-to-br from-indigo-500 to-purple-600 text-white shadow-md shadow-purple-500/30">
-              <Bot size={20} />
-            </div>
-            <div className="flex items-center gap-1.5 px-5 py-5 text-gray-400">
-               <div className="w-2.5 h-2.5 bg-indigo-500 rounded-full animate-bounce"></div>
-               <div className="w-2.5 h-2.5 bg-purple-500 rounded-full animate-bounce" style={{ animationDelay: '0.15s' }}></div>
-               <div className="w-2.5 h-2.5 bg-pink-500 rounded-full animate-bounce" style={{ animationDelay: '0.3s' }}></div>
-            </div>
-          </motion.div>
-        )}
-        <div ref={bottomRef} className="h-4" />
+    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0, overflow: 'hidden', background: 'var(--bg)', transition: 'background 0.25s ease' }}>
+
+      {/* Header */}
+      <div style={{
+        height: 52, display: 'flex', alignItems: 'center', padding: '0 14px',
+        borderBottom: '1px solid var(--divider)',
+        background: 'var(--header-bg)', backdropFilter: 'blur(12px)',
+        flexShrink: 0, zIndex: 10, gap: 10,
+        transition: 'background 0.25s ease, border-color 0.25s ease',
+      }}>
+        <button
+          onClick={onToggleSidebar}
+          className="tap-target"
+          style={{
+            padding: 6, borderRadius: 8, border: 'none', cursor: 'pointer',
+            background: 'transparent', color: 'var(--toggle-color)',
+            flexShrink: 0, transition: 'all 0.15s',
+            WebkitTapHighlightColor: 'transparent',
+          }}
+          onMouseEnter={e => { e.currentTarget.style.background = 'var(--toggle-hover)'; e.currentTarget.style.color = 'var(--toggle-hover-c)'; }}
+          onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'var(--toggle-color)'; }}
+        >
+          {sidebarOpen ? <PanelLeftClose size={17} /> : <Menu size={17} />}
+        </button>
+
+        <div style={{ flex: 1, overflow: 'hidden' }}>
+          <div style={{ fontSize: 14, fontWeight: 500, color: 'var(--header-title)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            {title}
+          </div>
+        </div>
+
+        <div
+          className="model-pill-header"
+          style={{
+            fontSize: 11, fontWeight: 600, letterSpacing: '0.03em',
+            color: 'var(--pill-text)',
+            background: 'var(--pill-bg)', border: '1px solid var(--pill-border)',
+            borderRadius: 99, padding: '3px 10px',
+            whiteSpace: 'nowrap', maxWidth: 140, overflow: 'hidden', textOverflow: 'ellipsis', flexShrink: 0,
+            transition: 'background 0.25s, color 0.25s, border-color 0.25s',
+          }}>
+          {model}
+        </div>
       </div>
+
+      {/* Body */}
+      {isEmpty ? (
+        <EmptyState />
+      ) : (
+        <div className="scroll-touch" style={{ flex: 1, overflowY: 'auto', padding: '1.5rem 1rem 0.5rem' }}>
+          <div style={{ maxWidth: 760, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 28 }}>
+            <AnimatePresence initial={false}>
+              {messages.map((msg, i) => {
+                const isLastAsst = i === messages.length - 1 && msg.role === 'assistant';
+                const streaming  = isLastAsst && generating;
+                if (isLastAsst && msg.content === '' && generating) return null;
+                return (
+                  <motion.div
+                    key={i}
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.25, ease: 'easeOut' }}
+                  >
+                    {msg.role === 'user'
+                      ? <UserMessage msg={msg} />
+                      : <AssistantMessage msg={msg} streaming={streaming} />
+                    }
+                  </motion.div>
+                );
+              })}
+            </AnimatePresence>
+
+            {showTyping && (
+              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.2 }}>
+                <TypingIndicator />
+              </motion.div>
+            )}
+
+            <div ref={bottomRef} style={{ height: 4 }} />
+          </div>
+        </div>
+      )}
     </div>
   );
-};
-
-export default ChatWindow;
+}

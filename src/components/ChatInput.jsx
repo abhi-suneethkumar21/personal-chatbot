@@ -1,182 +1,218 @@
-import React, { useState, useRef, useEffect } from 'react';
-import { Paperclip, ArrowUp, Square, Globe } from 'lucide-react';
-
+import { useState, useRef, useEffect } from 'react';
+import { Paperclip, ArrowUp, Square, X } from 'lucide-react';
 import * as pdfjsLib from 'pdfjs-dist/build/pdf.mjs';
 import pdfWorker from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorker;
 
-const ChatInput = ({ onSendMessage, isGenerating, onStop }) => {
-  const [input, setInput] = useState('');
+export default function ChatInput({ onSend, generating, onStop }) {
+  const [text, setText]             = useState('');
   const [attachments, setAttachments] = useState([]);
-  const textareaRef = useRef(null);
-  const fileInputRef = useRef(null);
+  const [focused, setFocused]       = useState(false);
+  const textRef = useRef(null);
+  const fileRef = useRef(null);
 
   useEffect(() => {
-    if (textareaRef.current) {
-      textareaRef.current.style.height = 'auto';
-      textareaRef.current.style.height = `${Math.min(textareaRef.current.scrollHeight, 200)}px`;
-    }
-  }, [input]);
+    const el = textRef.current;
+    if (!el) return;
+    el.style.height = 'auto';
+    el.style.height = Math.min(el.scrollHeight, 180) + 'px';
+  }, [text]);
 
-  const handleSubmit = (e) => {
-    e.preventDefault();
-    if ((input.trim() || attachments.length > 0) && !isGenerating) {
-      onSendMessage(input.trim(), attachments);
-      setInput('');
-      setAttachments([]);
-      if (textareaRef.current) textareaRef.current.style.height = 'auto';
-    }
+  const submit = (e) => {
+    e?.preventDefault();
+    if ((!text.trim() && !attachments.length) || generating) return;
+    onSend(text.trim(), attachments);
+    setText('');
+    setAttachments([]);
+    if (textRef.current) textRef.current.style.height = 'auto';
   };
 
-  const handleKeyDown = (e) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
-      handleSubmit(e);
-    }
+  const onKeyDown = (e) => {
+    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); submit(); }
   };
 
-  const handleFileChange = (e) => {
-    const files = Array.from(e.target.files);
-    files.forEach(file => {
+  const handleFiles = (e) => {
+    Array.from(e.target.files ?? []).forEach(file => {
       if (file.type.startsWith('image/')) {
-        const reader = new FileReader();
-        reader.onload = (e) => {
-          const base64Data = e.target.result.split(',')[1];
-          setAttachments(prev => [...prev, { type: 'image', name: file.name, data: base64Data, url: e.target.result }]);
+        const r = new FileReader();
+        r.onload = (ev) => {
+          setAttachments(p => [...p, { type: 'image', name: file.name, data: ev.target.result.split(',')[1], url: ev.target.result }]);
         };
-        reader.readAsDataURL(file);
+        r.readAsDataURL(file);
       } else if (file.type === 'application/pdf') {
-        const reader = new FileReader();
-        reader.onload = async (e) => {
+        const r = new FileReader();
+        r.onload = async (ev) => {
           try {
-            const typedarray = new Uint8Array(e.target.result);
-            const pdf = await pdfjsLib.getDocument(typedarray).promise;
-            let fullText = '';
+            const pdf = await pdfjsLib.getDocument(new Uint8Array(ev.target.result)).promise;
+            let content = '';
             for (let i = 1; i <= pdf.numPages; i++) {
               const page = await pdf.getPage(i);
-              const textContent = await page.getTextContent();
-              const pageText = textContent.items.map(item => item.str).join(' ');
-              fullText += `\n--- Page ${i} ---\n${pageText}`;
+              const tc = await page.getTextContent();
+              content += `\n--- Page ${i} ---\n${tc.items.map(x => x.str).join(' ')}`;
             }
-            setAttachments(prev => [...prev, { type: 'pdf', name: file.name, content: fullText }]);
+            setAttachments(p => [...p, { type: 'pdf', name: file.name, content }]);
           } catch (err) {
-            console.error("PDF Extraction error:", err);
-            setAttachments(prev => [...prev, { type: 'pdf', name: file.name, content: '[Error extracting PDF text]' }]);
+            console.error('PDF error', err);
+            setAttachments(p => [...p, { type: 'pdf', name: file.name, content: '[Error extracting PDF]' }]);
           }
         };
-        reader.readAsArrayBuffer(file);
+        r.readAsArrayBuffer(file);
       } else {
-        const reader = new FileReader();
-        reader.onload = (e) => {
-          setAttachments(prev => [...prev, { type: 'text', name: file.name, content: e.target.result }]);
-        };
-        reader.readAsText(file);
+        const r = new FileReader();
+        r.onload = (ev) => setAttachments(p => [...p, { type: 'text', name: file.name, content: ev.target.result }]);
+        r.readAsText(file);
       }
     });
-    if (fileInputRef.current) fileInputRef.current.value = '';
+    if (fileRef.current) fileRef.current.value = '';
   };
 
-  const removeAttachment = (index) => {
-    setAttachments(prev => prev.filter((_, i) => i !== index));
-  };
+  const canSend = (text.trim() || attachments.length > 0) && !generating;
 
   return (
-    <div className="p-4 md:p-6 pb-6 md:pb-8 bg-gradient-to-t from-[#0f1115] via-[#0f1115] to-transparent shrink-0">
-      <div className="max-w-4xl mx-auto relative">
+    <div
+      className="safe-bottom"
+      style={{
+        padding: '10px 16px 0',
+        background: 'linear-gradient(to top, var(--bg) 65%, transparent)',
+        flexShrink: 0,
+        transition: 'background 0.25s ease',
+      }}
+    >
+      <div style={{ maxWidth: 760, margin: '0 auto' }}>
+
+        {/* Attachment previews */}
         {attachments.length > 0 && (
-          <div className="flex flex-wrap gap-3 mb-4 px-2">
-            {attachments.map((att, idx) => (
-              <div key={idx} className="relative group rounded-xl overflow-visible border border-[#2d3038] bg-[#1e2025] flex items-center gap-3 p-2 pr-4 shadow-md max-w-[200px]">
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 10 }}>
+            {attachments.map((att, i) => (
+              <div key={i} style={{
+                position: 'relative', display: 'flex', alignItems: 'center', gap: 8,
+                background: 'var(--att-bg)', border: '1px solid var(--att-border)',
+                borderRadius: 10, padding: '6px 10px', maxWidth: 180,
+                transition: 'background 0.25s, border-color 0.25s',
+              }}>
                 {att.type === 'image' && (
-                  <img src={att.url} alt="attachment" className="w-10 h-10 object-cover rounded-lg shrink-0" />
+                  <img src={att.url} alt="" style={{ width: 34, height: 34, borderRadius: 6, objectFit: 'cover', flexShrink: 0 }} />
                 )}
-                {att.type === 'pdf' && (
-                  <div className="w-10 h-10 bg-red-500/10 text-red-400 rounded-lg flex items-center justify-center shrink-0">
-                    <span className="font-bold text-[10px] uppercase">PDF</span>
+                {att.type !== 'image' && (
+                  <div style={{
+                    width: 34, height: 34, borderRadius: 6, flexShrink: 0,
+                    background: att.type === 'pdf' ? 'rgba(255,90,90,0.1)' : 'var(--accent-fade)',
+                    color: att.type === 'pdf' ? '#ff8888' : 'var(--accent-text)',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    fontSize: 9, fontWeight: 800, letterSpacing: '0.06em',
+                  }}>
+                    {att.type.toUpperCase()}
                   </div>
                 )}
-                {att.type === 'text' && (
-                  <div className="w-10 h-10 bg-blue-500/10 text-blue-400 rounded-lg flex items-center justify-center shrink-0">
-                    <span className="font-bold text-[10px] uppercase">TXT</span>
-                  </div>
-                )}
-                {(att.type === 'pdf' || att.type === 'text' || att.type === 'image') && (
-                  <div className="text-xs text-gray-300 truncate w-full font-medium" title={att.name}>{att.name}</div>
-                )}
-                <button 
-                  type="button"
-                  onClick={() => removeAttachment(idx)}
-                  className="absolute -top-2 -right-2 bg-[#4b505f] hover:bg-red-500 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-all cursor-pointer shadow-lg z-10"
+                <span style={{ fontSize: 12, color: 'var(--att-text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>
+                  {att.name}
+                </span>
+                <button
+                  onClick={() => setAttachments(p => p.filter((_, j) => j !== i))}
+                  style={{
+                    position: 'absolute', top: -6, right: -6, width: 18, height: 18,
+                    borderRadius: '50%', border: 'none', cursor: 'pointer',
+                    background: 'var(--att-rm-bg)', color: 'var(--t2)',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    transition: 'background 0.15s, color 0.15s',
+                  }}
+                  onMouseEnter={e => { e.currentTarget.style.background = 'var(--del-hover-bg)'; e.currentTarget.style.color = 'var(--del-hover-text)'; }}
+                  onMouseLeave={e => { e.currentTarget.style.background = 'var(--att-rm-bg)'; e.currentTarget.style.color = 'var(--t2)'; }}
                 >
-                  <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                  <X size={10} />
                 </button>
               </div>
             ))}
           </div>
         )}
-        <form 
-          onSubmit={handleSubmit}
-          className="bg-[#1e2025] rounded-3xl p-2 pl-4 flex items-end gap-2 shadow-xl border border-[#2d3038] focus-within:border-indigo-500/50 transition-all duration-300 focus-within:shadow-indigo-500/10"
+
+        {/* Input box */}
+        <div
+          style={{
+            display: 'flex', alignItems: 'center', gap: 6,
+            background: 'var(--input-bg)',
+            border: `1px solid ${focused ? 'var(--accent-ring)' : 'var(--input-ring)'}`,
+            borderRadius: 18, padding: '8px 8px 8px 12px',
+            boxShadow: focused ? '0 0 0 3px var(--accent-focus)' : 'none',
+            transition: 'border-color 0.2s, box-shadow 0.2s, background 0.25s',
+          }}
         >
-          <div className="flex gap-1 mb-1.5 shrink-0">
-            <input 
-              type="file" 
-              multiple 
-              className="hidden" 
-              ref={fileInputRef}
-              onChange={handleFileChange}
-            />
-            <button 
-              type="button" 
-              onClick={() => fileInputRef.current?.click()}
-              className="p-2 text-gray-400 hover:text-white rounded-full hover:bg-[#2d3038] transition-colors cursor-pointer"
-              title="Attach File"
-            >
-              <Paperclip size={20} />
-            </button>
-          </div>
-          
+          <input type="file" multiple ref={fileRef} onChange={handleFiles} style={{ display: 'none' }} />
+
+          <button
+            type="button"
+            onClick={() => fileRef.current?.click()}
+            title="Attach file"
+            className="tap-target"
+            style={{
+              padding: 6, borderRadius: 8, border: 'none', cursor: 'pointer',
+              background: 'transparent', color: 'var(--t3)', flexShrink: 0,
+              transition: 'color 0.15s',
+            }}
+            onMouseEnter={e => e.currentTarget.style.color = 'var(--t2)'}
+            onMouseLeave={e => e.currentTarget.style.color = 'var(--t3)'}
+          >
+            <Paperclip size={17} />
+          </button>
+
           <textarea
-            ref={textareaRef}
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            onKeyDown={handleKeyDown}
-            placeholder="Message Local Llama..."
-            className="w-full max-h-52 py-3.5 bg-transparent border-none focus:outline-none text-gray-100 placeholder-gray-500 resize-none overflow-y-auto text-[15px] leading-relaxed cursor-text"
-            rows="1"
+            ref={textRef}
+            value={text}
+            onChange={e => setText(e.target.value)}
+            onKeyDown={onKeyDown}
+            onFocus={() => setFocused(true)}
+            onBlur={() => setFocused(false)}
+            placeholder="Message AB…"
+            rows={1}
+            style={{
+              flex: 1, background: 'transparent', border: 'none', outline: 'none',
+              resize: 'none', color: 'var(--input-text)', fontSize: 14, lineHeight: 1.65,
+              maxHeight: 180, overflowY: 'auto', padding: '5px 0', fontFamily: 'inherit',
+              transition: 'color 0.25s',
+            }}
           />
-          
-          <div className="mb-1.5 shrink-0 pr-1">
-            {isGenerating ? (
-              <button 
-                type="button"
+
+          <div style={{ flexShrink: 0, marginBottom: 2 }}>
+            {generating ? (
+              <button
                 onClick={onStop}
-                className="p-3 bg-[#404452] text-white hover:bg-[#4b505f] rounded-full transition-all flex items-center justify-center shadow-sm cursor-pointer"
+                title="Stop"
+                className="tap-target"
+                style={{
+                  width: 38, height: 38, borderRadius: 11, border: 'none', cursor: 'pointer',
+                  background: 'var(--elevated)', color: 'var(--t1)',
+                  transition: 'background 0.15s',
+                }}
+                onMouseEnter={e => e.currentTarget.style.background = 'var(--divider-strong)'}
+                onMouseLeave={e => e.currentTarget.style.background = 'var(--elevated)'}
               >
-                <Square size={18} fill="currentColor" />
+                <Square size={14} fill="currentColor" />
               </button>
             ) : (
-              <button 
-                type="submit"
-                disabled={!input.trim() && attachments.length === 0}
-                className={`p-3 rounded-full transition-all flex items-center justify-center cursor-pointer ${
-                  input.trim() || attachments.length > 0
-                    ? 'bg-gradient-to-br from-indigo-500 to-purple-600 text-white hover:shadow-lg hover:shadow-purple-500/25 active:scale-95' 
-                    : 'bg-[#2d3038] text-gray-500 cursor-not-allowed'
-                }`}
+              <button
+                onClick={submit}
+                disabled={!canSend}
+                className="tap-target"
+                style={{
+                  width: 38, height: 38, borderRadius: 11, border: 'none',
+                  cursor: canSend ? 'pointer' : 'not-allowed',
+                  background: canSend ? 'linear-gradient(135deg, var(--accent), var(--accent2))' : 'var(--elevated)',
+                  color: canSend ? 'white' : 'var(--t3)',
+                  boxShadow: canSend ? '0 2px 14px var(--accent-glow)' : 'none',
+                  transition: 'all 0.2s',
+                }}
               >
-                <ArrowUp size={18} strokeWidth={2.5} />
+                <ArrowUp size={16} strokeWidth={2.5} />
               </button>
             )}
           </div>
-        </form>
-        <div className="text-center text-xs text-gray-500 mt-4 font-medium px-4">
-          Local Llama may produce inaccurate information about people, places, or facts. Verify important information.
+        </div>
+
+        <div style={{ textAlign: 'center', fontSize: 11, color: 'var(--footer-note)', marginTop: 8, marginBottom: 4,transition: 'color 0.25s' }}>
+          Responses from a local Ollama instance · Verify important information
         </div>
       </div>
     </div>
   );
-};
-
-export default ChatInput;
+}

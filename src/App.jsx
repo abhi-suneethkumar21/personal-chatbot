@@ -1,170 +1,210 @@
-import React, { useState, useRef, useEffect } from 'react';
-import { Menu, PanelLeftClose, ChevronDown } from 'lucide-react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import Sidebar from './components/Sidebar';
 import ChatWindow from './components/ChatWindow';
 import ChatInput from './components/ChatInput';
 
-function App() {
-  const [isSidebarOpen, setIsSidebarOpen] = useState(window.innerWidth >= 768);
-  const [messages, setMessages] = useState([]);
-  const [isGenerating, setIsGenerating] = useState(false);
-  const [selectedModel, setSelectedModel] = useState('llama3.1');
-  const abortControllerRef = useRef(null);
+const OLLAMA_BASE = 'https://b818-2405-201-d01c-1085-8c73-7ef-c133-f30d.ngrok-free.app';
+const STORAGE_KEY = 'ab_v1';
+const ACTIVE_KEY = 'ab_active';
+const SYSTEM_PROMPT =
+  'You are an elite personal AI assistant. Help with work, coding, and personal tasks. ' +
+  'Be highly analytical, direct, and conversational. Never hallucinate data. Avoid filler phrases.';
+
+function uid() {
+  return Date.now().toString(36) + Math.random().toString(36).slice(2);
+}
+
+function newSession(model = 'llama3.1') {
+  return { id: uid(), title: 'New Chat', model, messages: [], createdAt: Date.now(), updatedAt: Date.now() };
+}
+
+function hydrate() {
+  try { return JSON.parse(localStorage.getItem(STORAGE_KEY)) || []; } catch { return []; }
+}
+
+function persist(sessions) {
+  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(sessions)); } catch (e) { console.warn('persist failed', e); }
+}
+
+export default function App() {
+  const [sessions, setSessions] = useState(() => {
+    const s = hydrate();
+    return s.length ? s : [newSession()];
+  });
+
+  const [activeId, setActiveId] = useState(() => {
+    const s = hydrate();
+    if (!s.length) return null;
+    const saved = localStorage.getItem(ACTIVE_KEY);
+    return s.find(x => x.id === saved) ? saved : [...s].sort((a, b) => b.updatedAt - a.updatedAt)[0].id;
+  });
+
+  const [sidebarOpen, setSidebarOpen] = useState(() => window.innerWidth >= 768);
+  const [generating, setGenerating] = useState(false);
+  const [theme, setTheme] = useState(() => localStorage.getItem('ab_theme') || 'dark');
+  const abortRef = useRef(null);
+
+  useEffect(() => { persist(sessions); }, [sessions]);
+  useEffect(() => { if (activeId) localStorage.setItem(ACTIVE_KEY, activeId); }, [activeId]);
 
   useEffect(() => {
-    const handleResize = () => {
-      if (window.innerWidth >= 768) {
-        setIsSidebarOpen(true);
-      } else {
-        setIsSidebarOpen(false);
-      }
-    };
-    window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
+    document.documentElement.dataset.theme = theme;
+    localStorage.setItem('ab_theme', theme);
+  }, [theme]);
+
+  const toggleTheme = () => setTheme(t => t === 'dark' ? 'light' : 'dark');
+
+  useEffect(() => {
+    const onResize = () => { if (window.innerWidth >= 768) setSidebarOpen(true); };
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
   }, []);
 
-  const handleOllamaStream = async (userMessage, attachments = []) => {
-    setIsGenerating(true);
-
-    // Construct the full prompt content including attachments
-    let fullContent = userMessage;
-    const textAttachments = attachments.filter(a => a.type === 'text' || a.type === 'pdf');
-    if (textAttachments.length > 0) {
-      fullContent += '\n\n' + textAttachments.map(a => `--- Content of ${a.name} ---\n${a.content}\n---------------------------`).join('\n\n');
+  // Ensure activeId always points to a valid session
+  useEffect(() => {
+    if (sessions.length && !sessions.find(s => s.id === activeId)) {
+      setActiveId(sessions[0].id);
     }
+  }, [sessions, activeId]);
 
+  const active = sessions.find(s => s.id === activeId) ?? sessions[0];
+
+  const patch = useCallback((id, fn) => {
+    setSessions(prev => prev.map(s => s.id === id ? { ...fn(s), updatedAt: Date.now() } : s));
+  }, []);
+
+  const handleNew = () => {
+    const s = newSession(active?.model);
+    setSessions(prev => [s, ...prev]);
+    setActiveId(s.id);
+    if (window.innerWidth < 768) setSidebarOpen(false);
+  };
+
+  const handleDelete = (id) => {
+    setSessions(prev => {
+      const next = prev.filter(s => s.id !== id);
+      if (!next.length) {
+        const fresh = newSession(active?.model);
+        setActiveId(fresh.id);
+        return [fresh];
+      }
+      if (id === activeId) setActiveId(next[0].id);
+      return next;
+    });
+  };
+
+  const handleModelChange = useCallback((model) => {
+    if (active) patch(active.id, s => ({ ...s, model }));
+  }, [active, patch]);
+
+  const handleSend = async (text, attachments = []) => {
+    if (!active || generating) return;
+    setGenerating(true);
+    const id = active.id;
+
+    let content = text;
+    attachments.filter(a => a.type !== 'image').forEach(a => {
+      content += `\n\n--- ${a.name} ---\n${a.content}`;
+    });
     const images = attachments.filter(a => a.type === 'image').map(a => a.data);
 
-    const newUserMsg = {
-      role: 'user',
-      content: fullContent,
-      displayContent: userMessage,
-      ...(images.length > 0 && { images })
-    };
+    const userMsg = { role: 'user', content, displayContent: text, ...(images.length && { images }) };
+    const asstMsg = { role: 'assistant', content: '' };
+    const isFirst = !active.messages.length;
+    const title = isFirst ? text.slice(0, 60) + (text.length > 60 ? '…' : '') : null;
+    const prevMsgs = [...active.messages];
 
-    // Define your personal system prompt here!
-    const systemMessage = {
-      role: 'system',
-      content: "You are my elite personal AI assistant. Your purpose is to help me with work, coding, and personal tasks. IMPORTANT: Never hallucinate or invent fake schedules, emails, or personal data. Wait for me to provide the context or ask a specific question. Be highly analytical, direct, and conversational. Do not use generic filler words."
-    };
+    patch(id, s => ({ ...s, ...(title && { title }), messages: [...s.messages, userMsg, asstMsg] }));
 
-    const apiMessages = [systemMessage, ...messages, newUserMsg].map(msg => ({
-      role: msg.role,
-      content: msg.content,
-      ...(msg.images && { images: msg.images })
-    }));
+    const apiMsgs = [
+      { role: 'system', content: SYSTEM_PROMPT },
+      ...prevMsgs.map(({ role, content, images }) => ({ role, content, ...(images && { images }) })),
+      { role: 'user', content, ...(images.length && { images }) },
+    ];
 
-    setMessages(prev => [...prev, newUserMsg, { role: 'assistant', content: '' }]);
-
-    abortControllerRef.current = new AbortController();
+    abortRef.current = new AbortController();
 
     try {
-      const response = await fetch('http://localhost:11434/api/chat', {
+      const res = await fetch(`${OLLAMA_BASE}/api/chat`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          model: selectedModel,
-          messages: apiMessages
-        }),
-        signal: abortControllerRef.current.signal
+        body: JSON.stringify({ model: active.model, messages: apiMsgs }),
+        signal: abortRef.current.signal,
       });
 
-      if (!response.ok) {
-        throw new Error(`Server responded with ${response.status}: ${response.statusText}`);
-      }
+      if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
 
-      const reader = response.body.getReader();
-      const decoder = new TextDecoder();
-      let done = false;
-      let buffer = '';
+      const reader = res.body.getReader();
+      const dec = new TextDecoder();
+      let buf = '';
 
-      while (!done) {
-        const { value, done: readerDone } = await reader.read();
-        done = readerDone;
-
-        if (value) {
-          buffer += decoder.decode(value, { stream: true });
-          const lines = buffer.split('\n');
-          // The last element might be an incomplete JSON string
-          buffer = lines.pop();
-
-          for (const line of lines) {
-            if (line.trim() === '') continue;
-            try {
-              const parsed = JSON.parse(line);
-              if (parsed.message?.content) {
-                setMessages(prev => {
-                  const newMessages = [...prev];
-                  const lastIndex = newMessages.length - 1;
-                  newMessages[lastIndex] = {
-                    ...newMessages[lastIndex],
-                    content: newMessages[lastIndex].content + parsed.message.content
-                  };
-                  return newMessages;
-                });
-              }
-            } catch (e) {
-              console.error("Error parsing stream line:", line, e);
+      for (;;) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        buf += dec.decode(value, { stream: true });
+        const lines = buf.split('\n');
+        buf = lines.pop() ?? '';
+        for (const line of lines) {
+          if (!line.trim()) continue;
+          try {
+            const { message } = JSON.parse(line);
+            if (message?.content) {
+              patch(id, s => {
+                const msgs = [...s.messages];
+                msgs[msgs.length - 1] = { ...msgs[msgs.length - 1], content: msgs[msgs.length - 1].content + message.content };
+                return { ...s, messages: msgs };
+              });
             }
-          }
+          } catch (e) { void e; }
         }
       }
     } catch (e) {
-      if (e.name === 'AbortError') {
-        console.log("Generation stopped by user.");
-      } else {
-        console.error("Failed to fetch from Ollama:", e);
-        setMessages(prev => {
-          const newMessages = [...prev];
-          const lastMsg = newMessages[newMessages.length - 1];
-          lastMsg.content = `**Error:** Failed to connect to Ollama. Make sure the Ollama server is running locally on \`http://localhost:11434\` and the model \`${selectedModel}\` is installed.\n\n\`\`\`bash\nollama run ${selectedModel}\n\`\`\`\n\n*Details: ${e.message}*`;
-          return newMessages;
+      if (e.name !== 'AbortError') {
+        patch(id, s => {
+          const msgs = [...s.messages];
+          msgs[msgs.length - 1] = {
+            ...msgs[msgs.length - 1],
+            content: `**Connection error:** ${e.message}\n\nMake sure your Ollama server is running and the model \`${active.model}\` is installed.`,
+          };
+          return { ...s, messages: msgs };
         });
       }
     } finally {
-      setIsGenerating(false);
-    }
-  };
-
-  const handleStop = () => {
-    if (abortControllerRef.current) {
-      abortControllerRef.current.abort();
+      setGenerating(false);
     }
   };
 
   return (
-    <div className="flex h-screen w-full bg-[#0f1115] overflow-hidden text-gray-100 font-sans selection:bg-indigo-500/30 selection:text-white">
-      <Sidebar isOpen={isSidebarOpen} toggleSidebar={() => setIsSidebarOpen(!isSidebarOpen)} />
-
-      <div className="flex-1 flex flex-col min-w-0 relative">
-        {/* Header / Top Bar */}
-        <header className="h-14 flex items-center px-4 border-b border-[#1e2025] shrink-0 sticky top-0 z-10 bg-[#0f1115]/80 backdrop-blur-md">
-          <button
-            onClick={() => setIsSidebarOpen(!isSidebarOpen)}
-            className="p-2 text-gray-400 hover:text-white rounded-lg hover:bg-[#2d3038] transition-colors cursor-pointer"
-          >
-            {isSidebarOpen ? <PanelLeftClose size={20} className="hidden md:block" /> : <Menu size={20} />}
-            {isSidebarOpen && <Menu size={20} className="md:hidden" />}
-          </button>
-
-          <div className="flex-1 flex justify-center">
-            <button className="flex items-center gap-2 px-4 py-1.5 rounded-xl hover:bg-[#2d3038] transition-colors font-medium text-[15px] text-gray-200 group cursor-pointer">
-              <span className="truncate max-w-[120px] sm:max-w-xs capitalize">{selectedModel}</span>
-              <ChevronDown size={16} className="text-gray-500 group-hover:text-gray-300 transition-colors" />
-            </button>
-          </div>
-
-          <div className="w-9" /> {/* Spacer to center the model name */}
-        </header>
-
-        {/* Chat Area */}
-        <ChatWindow messages={messages} isGenerating={isGenerating} />
-
-        {/* Input Area */}
-        <ChatInput onSendMessage={handleOllamaStream} isGenerating={isGenerating} onStop={handleStop} />
+    <div style={{ display: 'flex', height: '100%', width: '100%', overflow: 'hidden', background: 'var(--bg)' }}>
+      <Sidebar
+        open={sidebarOpen}
+        onToggle={() => setSidebarOpen(v => !v)}
+        sessions={sessions}
+        activeId={active?.id}
+        onSelect={(id) => { setActiveId(id); if (window.innerWidth < 768) setSidebarOpen(false); }}
+        onNew={handleNew}
+        onDelete={handleDelete}
+        currentModel={active?.model ?? 'llama3.1'}
+        onModelChange={handleModelChange}
+        ollamaBase={OLLAMA_BASE}
+        theme={theme}
+        onToggleTheme={toggleTheme}
+      />
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0, overflow: 'hidden' }}>
+        <ChatWindow
+          messages={active?.messages ?? []}
+          generating={generating}
+          sidebarOpen={sidebarOpen}
+          onToggleSidebar={() => setSidebarOpen(v => !v)}
+          title={active?.title ?? 'New Chat'}
+          model={active?.model ?? 'llama3.1'}
+        />
+        <ChatInput
+          onSend={handleSend}
+          generating={generating}
+          onStop={() => abortRef.current?.abort()}
+        />
       </div>
     </div>
   );
 }
-
-export default App;
